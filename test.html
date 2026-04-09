@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Test Chat v7.9 - Final</title>
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+      body {
+        font-family: sans-serif;
+        display: flex;
+        height: 100vh;
+        margin: 0;
+        background: #f0f2f5;
+      }
+
+      .panel {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        border-right: 1px solid #ddd;
+        padding: 15px;
+      }
+
+      .error-line {
+        color: white;
+        background: #d32f2f;
+        padding: 10px;
+        margin: 8px 0;
+        display: none;
+        border-radius: 5px;
+        font-weight: bold;
+        font-size: 13px;
+        text-align: center;
+      }
+
+      .chat-box {
+        flex: 1;
+        background: #e5ddd5;
+        border: 1px solid #ccc;
+        overflow-y: auto;
+        padding: 15px;
+        margin: 10px 0;
+        border-radius: 5px;
+      }
+
+      .msg {
+        margin-bottom: 10px;
+        padding: 10px;
+        border-radius: 10px;
+        background: white;
+        max-width: 85%;
+        position: relative;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+      }
+
+      .me {
+        background: #dcf8c6;
+        margin-left: auto;
+      }
+
+      .system {
+        background: #fff3cd;
+        color: #856404;
+        text-align: center;
+        font-size: 12px;
+        font-weight: bold;
+        margin: 5px 0;
+      }
+
+      .deleted {
+        color: #999;
+        font-style: italic;
+      }
+
+      .chat-img {
+        max-width: 100%;
+        border-radius: 5px;
+        margin-top: 5px;
+        border: 1px solid #ddd;
+      }
+
+      .controls input,
+      .controls select {
+        width: 92%;
+        padding: 8px;
+        margin: 4px 0;
+        border: 1px solid #ddd;
+      }
+
+      button {
+        padding: 8px 15px;
+        border: none;
+        cursor: pointer;
+        color: white;
+        font-weight: bold;
+        border-radius: 4px;
+        background: #00a884;
+      }
+
+      .btn-del {
+        background: #ff5252;
+        font-size: 10px;
+        position: absolute;
+        top: 5px;
+        right: 5px;
+        padding: 2px 5px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="panel">
+      <div
+        style="
+          background: #008069;
+          color: white;
+          padding: 10px;
+          font-weight: bold;
+        "
+      >
+        USER A (user-A)
+      </div>
+      <div id="err-A" class="error-line"></div>
+      <div class="chat-box" id="box-A"></div>
+      <div class="controls">
+        <input type="text" id="room-A" value="phong1" /><button
+          onclick="join('A')"
+          style="background: #34b7f1"
+        >
+          Vào Phòng
+        </button>
+        <hr />
+        <input type="text" id="text-A" placeholder="Nhập tin nhắn..." /><input
+          type="file"
+          id="file-A"
+        />
+        <button onclick="send('A')" style="width: 100%">Gửi Tin Nhắn</button>
+        <hr />
+        <select id="type-A">
+          <option value="direct">Direct (với B)</option>
+          <option value="group">Group</option>
+        </select>
+        <input
+          type="text"
+          id="name-A"
+          placeholder="Tên nhóm (nếu chọn Group)"
+        />
+        <button
+          onclick="createRoom('A')"
+          style="background: #075e54; width: 100%"
+        >
+          Tạo Phòng & Check Lỗi 6.2
+        </button>
+      </div>
+    </div>
+    <div class="panel">
+      <div
+        style="
+          background: #008069;
+          color: white;
+          padding: 10px;
+          font-weight: bold;
+        "
+      >
+        USER B (user-B)
+      </div>
+      <div id="err-B" class="error-line"></div>
+      <div class="chat-box" id="box-B"></div>
+      <div class="controls">
+        <input type="text" id="room-B" value="phong1" /><button
+          onclick="join('B')"
+          style="background: #34b7f1"
+        >
+          Vào Phòng
+        </button>
+        <hr />
+        <input type="text" id="text-B" placeholder="Nhập tin nhắn..." /><input
+          type="file"
+          id="file-B"
+        />
+        <button onclick="send('B')" style="width: 100%">Gửi Tin Nhắn</button>
+      </div>
+    </div>
+    <script>
+      const socket = io();
+      const users = {
+        A: {
+          id: "user-A",
+          box: "box-A",
+          err: "err-A",
+        },
+        B: {
+          id: "user-B",
+          box: "box-B",
+          err: "err-B",
+        },
+      };
+
+      function showError(u, txt) {
+        const el = document.getElementById(users[u].err);
+        el.innerText = txt;
+        el.style.display = "block";
+        setTimeout(() => {
+          el.style.display = "none";
+        }, 6000);
+      }
+
+      function join(u) {
+        socket.emit("join_room", document.getElementById(`room-${u}`).value);
+      }
+      async function createRoom(u) {
+        const res = await fetch("/api/chat/rooms", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            type: document.getElementById(`type-${u}`).value,
+            name: document.getElementById(`name-${u}`).value,
+            senderId: users[u].id,
+            memberIds: [u === "A" ? "user-B" : "user-A"],
+          }),
+        });
+        const result = await res.json();
+        if (!result.success)
+          showError(u, `[${result.error}] - ${result.message}`);
+        else alert("Tạo phòng thành công!");
+      }
+      async function send(u) {
+        const fIn = document.getElementById(`file-${u}`);
+        const tIn = document.getElementById(`text-${u}`);
+        let fInfo = {};
+        if (fIn.files[0]) {
+          const fd = new FormData();
+          fd.append("file", fIn.files[0]);
+          const res = await fetch("/api/upload", {
+            method: "POST",
+            body: fd,
+          });
+          const result = await res.json();
+          if (!result.success)
+            return showError(u, `[${result.error}] - ${result.message}`);
+          fInfo = result.data;
+        }
+        socket.emit("send_message", {
+          senderId: users[u].id,
+          roomId: document.getElementById(`room-${u}`).value,
+          text: tIn.value,
+          fileUrl: fInfo.url || null,
+          fileName: fInfo.name || null,
+        });
+        fIn.value = "";
+        tIn.value = "";
+      }
+      socket.on("new_message", (msg) => {
+        ["A", "B"].forEach((u) => {
+          const box = document.getElementById(users[u].box);
+          const div = document.createElement("div");
+          if (msg.type === "system") {
+            div.className = "msg system";
+            div.innerText = msg.text;
+          } else {
+            const isMe = users[u].id === msg.senderId;
+            div.className = `msg ${isMe ? "me" : ""}`;
+            div.id = `m-${u}-${msg._id}`;
+            const isImg = /\.(jpg|jpeg|png|gif|webp)$/i.test(msg.fileName);
+            div.innerHTML = `<b>${msg.senderId}:</b> ${msg.text} 
+                        ${msg.fileUrl ? (isImg ? `<br><img src="${msg.fileUrl}" class="chat-img">` : `<br><a href="${msg.fileUrl}" target="_blank">📎 ${msg.fileName}</a>`) : ""}
+                        <button class="btn-del" onclick="deleteMsg('${u}', '${msg._id}')">Xóa</button>`;
+          }
+          box.appendChild(div);
+          box.scrollTop = box.scrollHeight;
+        });
+      });
+      function deleteMsg(u, mid) {
+        socket.emit("delete_message", { messageId: mid, userId: users[u].id });
+      }
+      socket.on("message_deleted", (mid) => {
+        ["A", "B"].forEach((u) => {
+          const el = document.getElementById(`m-${u}-${mid}`);
+          if (el) el.innerHTML = `<span class="deleted">Tin nhắn đã xóa</span>`;
+        });
+      });
+      socket.on("error_msg", (txt) => {
+        showError("A", txt);
+        showError("B", txt);
+      });
+    </script>
+  </body>
+</html>

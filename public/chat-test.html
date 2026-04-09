@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Chat Pro - Nguyễn Minh Trí</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+      body {
+        font-family: "Segoe UI", sans-serif;
+        background: #f4f7f6;
+        display: flex;
+        justify-content: center;
+        padding: 20px;
+      }
+
+      #chat-container {
+        width: 450px;
+        background: #fff;
+        padding: 20px;
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+      }
+
+      #messages {
+        height: 380px;
+        overflow-y: auto;
+        border: 1px solid #eee;
+        padding: 15px;
+        margin-bottom: 15px;
+        border-radius: 8px;
+        list-style: none;
+      }
+
+      #messages li {
+        background: #f1f3f4;
+        padding: 10px;
+        border-radius: 10px;
+        margin-bottom: 10px;
+        font-size: 14px;
+      }
+
+      .img-chat {
+        max-width: 100%;
+        border-radius: 8px;
+        margin-top: 8px;
+        display: block;
+        border: 1px solid #ddd;
+      }
+
+      .input-area {
+        display: flex;
+        gap: 8px;
+      }
+
+      input[type="text"] {
+        flex: 1;
+        padding: 10px;
+        border-radius: 20px;
+        border: 1px solid #ddd;
+        outline: none;
+      }
+
+      button {
+        cursor: pointer;
+        border: none;
+        background: #0084ff;
+        color: white;
+        border-radius: 20px;
+        padding: 10px 18px;
+        font-weight: bold;
+      }
+
+      .btn-img {
+        background: #e4e6eb;
+        color: #000;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div id="chat-container">
+      <h3 style="text-align: center; color: #333">💬 Chat Service Pro</h3>
+      <ul id="messages"></ul>
+      <div class="input-area">
+        <input
+          type="file"
+          id="imageInput"
+          style="display: none"
+          onchange="uploadImage(this)"
+        />
+        <button
+          class="btn-img"
+          onclick="document.getElementById('imageInput').click()"
+        >
+          📷
+        </button>
+        <input type="text" id="messageInput" placeholder="Nhập tin nhắn..." />
+        <button onclick="send()">Gửi</button>
+      </div>
+    </div>
+
+    <script>
+      const socket = io("http://localhost:3002");
+      let currentRoomId = null;
+
+      socket.on("room_info", (data) => (currentRoomId = data.roomId));
+
+      socket.on("message", (data) => {
+        const li = document.createElement("li");
+        li.innerHTML = `<strong>${data.user.slice(0, 5)}:</strong> ${data.text || ""}`;
+        if (
+          data.type === "image" &&
+          data.mediaUrls &&
+          data.mediaUrls.length > 0
+        ) {
+          li.innerHTML += `<br><img src="${data.mediaUrls[0]}" class="img-chat">`;
+        }
+        document.getElementById("messages").appendChild(li);
+        document.getElementById("messages").scrollTop =
+          document.getElementById("messages").scrollHeight;
+      });
+
+      function send() {
+        const input = document.getElementById("messageInput");
+        if (input.value && currentRoomId) {
+          socket.emit("message", {
+            roomId: currentRoomId,
+            type: "text",
+            content: input.value,
+          });
+          input.value = "";
+        }
+      }
+
+      async function uploadImage(input) {
+        if (!input.files[0] || !currentRoomId) return;
+        const formData = new FormData();
+        formData.append("image", input.files[0]);
+
+        // Cập nhật path theo chuẩn Microservice
+        const res = await fetch(`/api/chat/rooms/${currentRoomId}/upload`, {
+          method: "POST",
+          body: formData,
+        });
+
+        const result = await res.json();
+        if (result.success && result.data.mediaUrl) {
+          socket.emit("message", {
+            roomId: currentRoomId,
+            type: "image",
+            content: "Đã gửi một ảnh",
+            mediaUrls: [result.data.mediaUrl],
+          });
+        }
+        input.value = "";
+      }
+      document.getElementById("messageInput").onkeypress = (e) => {
+        if (e.key === "Enter") send();
+      };
+    </script>
+  </body>
+</html>
