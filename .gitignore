@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+.venv/
+venv/
+*.pyc
+
+# Node/React Frontend
+user-service-frontend/node_modules/
+user-service-frontend/build/
+
+# File môi trường chứa pass/key (nếu có)
+.env
