@@ -1,0 +1,24 @@
+config:
+  target: "http://localhost:3002"
+  phases:
+    - duration: 30
+      arrivalRate: 5
+      rampTo: 20
+      name: "Warm-up"
+    - duration: 60
+      arrivalRate: 20
+      rampTo: 50
+      name: "Heavy Load"
+  engines:
+    socketio:
+      transports: ["websocket"]
+      query:
+        userId: "bot-{{ $uuid }}"
+scenarios:
+  - name: "Chat activity"
+    engine: socketio
+    flow:
+      - emit:
+          channel: "send_message"
+          data: { text: "Stress test message from {{ $uuid }}", type: "text" }
+      - think: 1

@@ -1,0 +1,30 @@
+config:
+  target: "http://localhost:3002"
+  phases:
+    - duration: 60 # Chạy kiểm tra trong 60 giây
+      arrivalRate: 5 # Mỗi giây có 5 người dùng mới vào
+      rampTo: 20 # Tăng dần lên 20 người dùng mỗi giây
+      name: "Giai đoạn tăng tải"
+  engines:
+    socketio: {} # Sử dụng engine socketio cho Chat
+
+scenarios:
+  - name: "Người dùng ảo vào chat và gửi ảnh"
+    engine: socketio
+    flow:
+      - emit:
+          channel: "join_room"
+          data: "lobby"
+      - think: 1 # Đợi 1 giây như người thật
+      - emit:
+          channel: "send_message"
+          data:
+            text: "Chào mọi người, mình là bot test!"
+            type: "text"
+      - think: 2 # Đợi 2 giây
+      - emit:
+          channel: "send_message"
+          data:
+            url: "http://127.0.0.1:9000/chat-uploads/HoTaDung.jpg"
+            type: "img"
+      - think: 1
