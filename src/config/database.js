@@ -1,26 +1,38 @@
 const mongoose = require("mongoose");
 
-/**
- * Kết nối tới MongoDB
- * Sử dụng MONGODB_URI từ biến môi trường hoặc giá trị mặc định của Docker
- */
-const connectDB = async () => {
-  try {
-    // Ưu tiên MONGODB_URI, nếu không có sẽ dùng mặc định cho Docker [cite: 482]
-    const uri = process.env.MONGODB_URI || "mongodb://mongodb:27017/chatdb";
+const MAX_RETRIES = 5;
+const RETRY_DELAY_MS = 5000;
+let retryCount = 0;
 
-    // Cấu hình các tùy chọn để kết nối ổn định hơn
-    const options = {
-      autoIndex: true, // Tự động tạo index để tối ưu truy vấn [cite: 465]
-    };
+const connectDB = async function() {
+    try {
+        const uri =
+            process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/chat_service";
+        const options = {
+            serverSelectionTimeoutMS: 5000,
+            socketTimeoutMS: 45000,
+            retryWrites: true,
+            retryReads: true,
+        };
 
-    await mongoose.connect(uri, options);
-    console.log(`✅ MongoDB Connected: ${uri}`);
-  } catch (error) {
-    console.error(`❌ MongoDB Connection Error: ${error.message}`);
-    // Dừng tiến trình nếu không thể kết nối DB quan trọng
-    process.exit(1);
-  }
+        if (retryCount === 0) {
+            console.log("🔄 Đang kết nối đến MongoDB...");
+        }
+
+        await mongoose.connect(uri, options);
+        console.log("✅ THÀNH CÔNG: MongoDB Connected");
+        retryCount = 0;
+    } catch (error) {
+        if (retryCount < MAX_RETRIES) {
+            retryCount++;
+            console.log("⏳ Thử lại lần " + retryCount + " sau 5s...");
+            setTimeout(function() {
+                connectDB();
+            }, RETRY_DELAY_MS);
+        } else {
+            process.exit(1);
+        }
+    }
 };
 
 module.exports = { connectDB };

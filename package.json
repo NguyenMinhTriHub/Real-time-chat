@@ -1,23 +1,30 @@
 {
-  "name": "chat-service",
-  "version": "7.9.0",
-  "main": "index.js",
-  "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js",
-    "test:torture": "artillery run load-test.yml"
-  },
-  "dependencies": {
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.0",
-    "express": "^4.19.0",
-    "minio": "^8.0.7",
-    "mongoose": "^7.6.0",
-    "multer": "^1.4.5-lts.1",
-    "redis": "^4.6.10",
-    "socket.io": "^4.7.5"
-  },
-  "devDependencies": {
-    "nodemon": "^3.1.0"
-  }
+    "name": "chat-service",
+    "version": "4.0.0",
+    "main": "index.js",
+    "scripts": {
+        "start": "node index.js",
+        "dev": "powershell -NoProfile -Command \"Get-NetTCPConnection -LocalPort 3002 -State Listen -ErrorAction SilentlyContinue | ForEach-Object { Stop-Process -Id $_.OwningProcess -Force }\"; nodemon index.js",
+        "backup:mongo": "node ./scripts/backup-mongo-to-minio.js",
+        "backup:mongo:backups": "MINIO_BACKUP_BUCKET=backups node ./scripts/backup-mongo-to-minio.js",
+        "backup:schedule": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/register-mongo-backup-task.ps1",
+        "test:torture": "artillery run load-test.yml"
+    },
+    "dependencies": {
+        "axios": "^1.16.0",
+        "bcrypt": "^6.0.0",
+        "cors": "^2.8.5",
+        "dotenv": "^16.4.0",
+        "express": "^4.19.0",
+        "jsonwebtoken": "^9.0.3",
+        "minio": "^8.0.7",
+        "mongoose": "^7.6.0",
+        "multer": "^1.4.5-lts.1",
+        "redis": "^4.7.1",
+        "socket.io": "^4.7.5",
+        "socket.io-client": "^4.8.3"
+    },
+    "devDependencies": {
+        "nodemon": "^3.1.0"
+    }
 }

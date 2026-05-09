@@ -93,6 +93,7 @@ class ErrorHandler {
 
   /**
    * Xử lý các lỗi logic nghiệp vụ (Business Logic)
+   * Hỗ trợ v4.0 error codes: VALIDATION_ERROR, ROOM_EXISTS, FILE_TOO_LARGE, ALREADY_DELETED
    */
   static handleBusinessError(error) {
     let statusCode = 500;
@@ -115,6 +116,21 @@ class ErrorHandler {
         statusCode = 400;
         errorCode = "VALIDATION_ERROR";
         message = "Invalid input data";
+        break;
+      case "ROOM_EXISTS":
+        statusCode = 409;
+        errorCode = "ROOM_EXISTS";
+        message = "Room already exists";
+        break;
+      case "FILE_TOO_LARGE":
+        statusCode = 413;
+        errorCode = "FILE_TOO_LARGE";
+        message = "File exceeds 10MB limit";
+        break;
+      case "ALREADY_DELETED":
+        statusCode = 410;
+        errorCode = "ALREADY_DELETED";
+        message = "Message has already been deleted";
         break;
     }
 

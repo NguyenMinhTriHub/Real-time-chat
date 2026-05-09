@@ -5,38 +5,59 @@ let client = null;
 /**
  * Khởi tạo và kết nối Redis Client
  */
-const connectRedis = async () => {
-  try {
-    // Kiểm tra định dạng URL Redis từ .env [cite: 482]
-    const redisUrl =
-      process.env.REDIS_URL ||
-      `redis://${process.env.REDIS_HOST || "redis"}:${process.env.REDIS_PORT || 6379}`;
+const connectRedis = async() => {
+    try {
+        // Kiểm tra định dạng URL Redis từ .env [cite: 482]
+        const redisUrl =
+            process.env.REDIS_URL ||
+            `redis://${process.env.REDIS_HOST || "redis"}:${process.env.REDIS_PORT || 6379}`;
 
-    client = redis.createClient({
-      url: redisUrl,
-    });
+        client = redis.createClient({
+            url: redisUrl,
+        });
 
-    // Lắng nghe các sự kiện lỗi của Redis để debug
-    client.on("error", (err) => console.error("❌ Redis Client Error", err));
+        // Lắng nghe các sự kiện lỗi của Redis để debug
+        client.on("error", (err) => console.error("❌ Redis Client Error", err));
 
-    await client.connect();
-    console.log("✅ Redis Connected");
-    return client;
-  } catch (error) {
-    console.error("❌ Redis Connection Error:", error.message);
-    // Dừng tiến trình vì hệ thống Chat dựa rất nhiều vào Redis Pub/Sub [cite: 414]
-    process.exit(1);
-  }
+        await client.connect();
+        console.log("✅ Redis Connected");
+        return client;
+    } catch (error) {
+        console.error("❌ Redis Connection Error:", error.message);
+        // Dừng tiến trình vì hệ thống Chat dựa rất nhiều vào Redis Pub/Sub [cite: 414]
+        process.exit(1);
+    }
 };
 
 /**
  * Trả về client hiện tại để các module khác sử dụng
  */
+let subscriber = null;
+
 const getRedisClient = () => {
-  if (!client) {
-    throw new Error("Redis client not initialized. Call connectRedis first.");
-  }
-  return client;
+    if (!client) {
+        throw new Error("Redis client not initialized. Call connectRedis first.");
+    }
+    return client;
 };
 
-module.exports = { connectRedis, getRedisClient };
+const createRedisSubscriber = async() => {
+    if (!client) {
+        throw new Error("Redis client not initialized. Call connectRedis first.");
+    }
+
+    if (subscriber && subscriber.isOpen) {
+        return subscriber;
+    }
+
+    subscriber = client.duplicate();
+    subscriber.on("error", (err) =>
+        console.error("❌ Redis Subscriber Error", err),
+    );
+    await subscriber.connect();
+    console.log("✅ Redis Subscriber Connected");
+
+    return subscriber;
+};
+
+module.exports = { connectRedis, getRedisClient, createRedisSubscriber };

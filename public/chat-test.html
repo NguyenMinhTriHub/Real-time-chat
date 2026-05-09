@@ -103,6 +103,11 @@
       const socket = io("http://localhost:3002");
       let currentRoomId = null;
 
+      // MỚI THÊM: Biến để quản lý Infinite Scroll
+      let messageCursor = null; // cursor cho lần tải tiếp theo
+      let isLoadingOldMessages = false; // Flag để tránh gọi API nhiều lần cùng lúc
+      const SCROLL_TOP_THRESHOLD = 50; // Ngưỡng pixel để kích hoạt load cũ
+
       socket.on("room_info", (data) => (currentRoomId = data.roomId));
 
       socket.on("message", (data) => {
@@ -119,6 +124,84 @@
         document.getElementById("messages").scrollTop =
           document.getElementById("messages").scrollHeight;
       });
+
+      // MỚI THÊM: Hàm lấy tin nhắn cũ từ API (Infinite Scroll)
+      async function loadOldMessages() {
+        if (isLoadingOldMessages || !currentRoomId) return;
+
+        isLoadingOldMessages = true;
+        const messagesContainer = document.getElementById("messages");
+        const scrollHeightBefore = messagesContainer.scrollHeight;
+
+        try {
+          // MỚI THÊM: Gọi API lấy tin nhắn cũ với cursor pagination
+          const url = `/api/chat/messages/${currentRoomId}?limit=20${
+            messageCursor ? `&cursor=${encodeURIComponent(messageCursor)}` : ""
+          }`;
+
+          const res = await fetch(url);
+          const result = await res.json();
+
+          if (result.success && result.data.messages.length > 0) {
+            const messages = result.data.messages;
+
+            // MỚI THÊM: Prepend (thêm lên trên) tin nhắn cũ mà không làm giật thanh cuộn
+            // Sử dụng DocumentFragment để cải thiện hiệu năng
+            const fragment = document.createDocumentFragment();
+
+            messages.forEach((msg) => {
+              const li = document.createElement("li");
+              let html = `<strong>${msg.senderId?.slice(0, 5) || "User"}:</strong> ${msg.text || msg.content || ""}`;
+
+              // MỚI THÊM: Hỗ trợ hiển thị ảnh
+              if (msg.type === "image" && msg.mediaUrls?.length > 0) {
+                html += `<br><img src="${msg.mediaUrls[0]}" class="img-chat">`;
+              }
+
+              li.innerHTML = html;
+              li.style.opacity = "0.9"; // Hint rằng đây là tin nhắn cũ
+              fragment.appendChild(li);
+            });
+
+            // MỚI THÊM: Thêm tất cả tin nhắn cũ vào đầu danh sách
+            messagesContainer.insertBefore(
+              fragment,
+              messagesContainer.firstChild,
+            );
+
+            // MỚI THÊM: Duy trì vị trí cuộn (prevent scroll jump)
+            const scrollHeightAfter = messagesContainer.scrollHeight;
+            const scrollDifference = scrollHeightAfter - scrollHeightBefore;
+            messagesContainer.scrollTop += scrollDifference;
+
+            // MỚI THÊM: Cập nhật cursor cho lần tải tiếp theo
+            messageCursor = result.data.pagination?.cursor;
+
+            console.log(
+              `Loaded ${messages.length} old messages. Next cursor: ${messageCursor}`,
+            );
+          }
+        } catch (error) {
+          console.error("Error loading old messages:", error);
+        } finally {
+          isLoadingOldMessages = false;
+        }
+      }
+
+      // MỚI THÊM: Bắt sự kiện scroll để detect khi người dùng cuộn lên trên cùng
+      document
+        .getElementById("messages")
+        .addEventListener("scroll", function (e) {
+          const messagesContainer = e.target;
+
+          // MỚI THÊM: Nếu cuộn gần chạm top, tự động load tin nhắn cũ
+          if (
+            messagesContainer.scrollTop < SCROLL_TOP_THRESHOLD &&
+            messageCursor !== null
+          ) {
+            loadOldMessages();
+          }
+        });
 
       function send() {
         const input = document.getElementById("messageInput");
@@ -154,9 +237,13 @@
         }
         input.value = "";
       }
+
       document.getElementById("messageInput").onkeypress = (e) => {
         if (e.key === "Enter") send();
       };
+
+      // MỚI THÊM: Khởi tạo - Tải tin nhắn cũ khi load trang (tùy chọn)
+      // loadOldMessages(); // Bỏ uncomment nếu muốn tải tin nhắn cũ khi vào phòng
     </script>
   </body>
 </html>

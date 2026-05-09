@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="vi">
+
+<head>
+    <meta charset="UTF-8" />
+    <title>Dashboard Chat v4.0 - Final Edition</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            background: #f0f2f5;
+            margin: 0;
+            padding: 20px;
+        }
+        
+        .container {
+            display: flex;
+            gap: 20px;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding-top: 40px;
+        }
+        
+        .panel {
+            flex: 1;
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 8px;
+            display: flex;
+            flex-direction: column;
+            height: 600px;
+        }
+        
+        .header {
+            background: #008069;
+            color: white;
+            padding: 10px;
+            font-weight: bold;
+            border-top-left-radius: 8px;
+            border-top-right-radius: 8px;
+        }
+        
+        .msg-list {
+            flex: 1;
+            overflow-y: auto;
+            background: #e5ddd5;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        
+        .msg {
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 13px;
+            max-width: 80%;
+            background: #fff;
+            position: relative;
+            box-shadow: 0 1px 1px rgba(0, 0, 0, 0.1);
+        }
+        
+        .me {
+            align-self: flex-end;
+            background: #dcf8c6;
+        }
+        
+        .banner {
+            padding: 10px;
+            text-align: center;
+            color: white;
+            display: none;
+            font-weight: bold;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+        }
+        
+        .error {
+            background: #f44336;
+            display: block;
+        }
+        
+        .success {
+            background: #4caf50;
+            display: block;
+        }
+        
+        img.chat-img {
+            max-width: 250px;
+            border-radius: 5px;
+            margin-top: 5px;
+            border: 1px solid #ddd;
+            display: block;
+        }
+        
+        .footer {
+            padding: 10px;
+            background: #f0f0f0;
+            display: flex;
+            gap: 5px;
+        }
+        
+        .tools {
+            padding: 10px;
+            background: #f9f9f9;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .btn-del {
+            border: none;
+            color: #d32f2f;
+            font-size: 9px;
+            background: none;
+            cursor: pointer;
+            margin-top: 5px;
+        }
+        
+        .msg-time {
+            font-size: 10px;
+            color: #888;
+            display: block;
+            margin-top: 4px;
+            text-align: right;
+        }
+        
+        .file-display {
+            font-weight: bold;
+            color: #333;
+            display: block;
+            margin-bottom: 2px;
+            font-size: 11px;
+        }
+    </style>
+</head>
+
+<body>
+    <div id="banner" class="banner"></div>
+    <div class="container">
+        <div id="panel-A" class="panel">
+            <div class="header">USER A</div>
+            <div class="tools">
+                <input type="text" id="g-A" placeholder="Tên nhóm..." />
+                <button onclick="createRoom('A', 'group')">Tạo Group</button>
+                <button onclick="createRoom('A', 'direct')">Tạo Direct</button>
+            </div>
+            <div id="list-A" class="msg-list"></div>
+            <div class="footer">
+                <input type="file" id="f-A" onchange="handleFile('A')" style="display: none" />
+                <button onclick="document.getElementById('f-A').click()">📎</button>
+                <input type="text" id="i-A" placeholder="Nhập tin..." style="flex: 1" onkeypress="if (event.key === 'Enter') send('A');" />
+                <button onclick="send('A')">Gửi</button>
+            </div>
+        </div>
+        <div id="panel-B" class="panel">
+            <div class="header">USER B</div>
+            <div class="tools">
+                <input type="text" id="g-B" placeholder="Tên nhóm..." />
+                <button onclick="createRoom('B', 'group')">Tạo Group</button>
+                <button onclick="createRoom('B', 'direct')">Tạo Direct</button>
+            </div>
+            <div id="list-B" class="msg-list"></div>
+            <div class="footer">
+                <input type="file" id="f-B" onchange="handleFile('B')" style="display: none" />
+                <button onclick="document.getElementById('f-B').click()">📎</button>
+                <input type="text" id="i-B" placeholder="Nhập tin..." style="flex: 1" onkeypress="if (event.key === 'Enter') send('B');" />
+                <button onclick="send('B')">Gửi</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        const USERS = {
+            A: "user-A",
+            B: "user-B"
+        };
+        let notifyTimeout;
+
+        function notify(msg, isError) {
+            const b = document.getElementById("banner");
+            b.innerText = msg;
+            b.className = "banner " + (isError ? "error" : "success");
+            b.style.display = "block";
+            clearTimeout(notifyTimeout);
+            notifyTimeout = setTimeout(() => {
+                b.style.display = "none";
+            }, 4000);
+        }
+
+        async function createRoom(u, type) {
+            const name = document.getElementById("g-" + u).value;
+            const res = await fetch("/api/chat/rooms", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    type,
+                    name
+                }),
+            });
+            const result = await res.json();
+            notify(result.message || result.error, !result.success);
+        }
+
+        async function handleFile(u) {
+            const f = document.getElementById("f-" + u).files[0];
+            if (!f) return;
+            const formData = new FormData();
+            formData.append("file", f);
+            try {
+                const r = await fetch("/api/chat/rooms/123/upload", {
+                    method: "POST",
+                    body: formData,
+                });
+                const res = await r.json();
+                if (res.success) {
+                    socket.emit("send_message", {
+                        mediaUrl: res.data.mediaUrl,
+                        fileName: res.data.fileName,
+                        senderId: USERS[u],
+                    });
+                } else {
+                    notify(res.message, true);
+                }
+            } catch (e) {
+                notify("Lỗi máy chủ", true);
+            }
+            document.getElementById("f-" + u).value = "";
+        }
+
+        function send(u) {
+            const c = document.getElementById("i-" + u).value;
+            if (!c.trim()) {
+                notify("Tin nhắn không được để trống!", true);
+            }
+            socket.emit("send_message", {
+                content: c,
+                senderId: USERS[u]
+            });
+            document.getElementById("i-" + u).value = "";
+        }
+
+        socket.on("error_ui", (d) => notify(d.message, true));
+
+        socket.on("new_message", (d) => {
+            const msg = d.data.message;
+            ["A", "B"].forEach((u) => {
+                const list = document.getElementById("list-" + u);
+                if (document.getElementById(`m-${u}-${msg._id}`)) return;
+                const div = document.createElement("div");
+                div.id = `m-${u}-${msg._id}`;
+                div.className = `msg ${msg.senderId === USERS[u] ? "me" : ""}`;
+                const isValid = renderContent(div, msg, u);
+                if (isValid) {
+                    list.appendChild(div);
+                    list.scrollTop = list.scrollHeight;
+                }
+            });
+        });
+
+        function formatVNTime(dateInput) {
+            const date = new Date(dateInput);
+            const timeStr = date.toLocaleTimeString("vi-VN", {
+                hour: "2-digit",
+                minute: "2-digit",
+                hour12: false,
+            });
+            const dateStr = date.toLocaleDateString("vi-VN");
+            return `${timeStr} ${dateStr}`;
+        }
+
+        function renderContent(div, msg, u) {
+            // FIX DỌN DẸP TIN NHẮN LỖI: Chỉ render nếu có senderId và có nội dung/file
+            if (!msg.senderId) return false;
+            if (!msg.content && !msg.mediaUrl && !msg.deletedAt) return false;
+
+            const vnTime = formatVNTime(msg.createdAt);
+
+            if (msg.deletedAt) {
+                div.innerHTML = `<i style='color: gray;'>tin nhắn đã xóa</i>
+                                 <span class="msg-time">${vnTime}</span>
+                                 <button class="btn-del" onclick="deleteMsg('${msg._id}', '${USERS[u]}')">[Xóa]</button>`;
+            } else {
+                let html = `<b>${msg.senderId}:</b> ${msg.content || ""}`;
+                if (msg.mediaUrl) {
+                    const lowerUrl = msg.mediaUrl.toLowerCase();
+                    // Hiển thị tên file PascalCase cho tất cả đính kèm
+                    const fileNameLabel = `<br><span class="file-display">${msg.fileName}</span>`;
+
+                    if (lowerUrl.includes(".pdf")) {
+                        html += `<br><a href="${msg.mediaUrl}" target="_blank">📄 ${msg.fileName}</a>`;
+                    } else if (
+                        lowerUrl.includes(".doc") ||
+                        lowerUrl.includes(".docx")
+                    ) {
+                        html += `<br><a href="${msg.mediaUrl}" target="_blank">📝 ${msg.fileName}</a>`;
+                    } else {
+                        // Đối với ảnh: Hiển thị tên file PascalCase phía trên ảnh
+                        html += fileNameLabel;
+                        html += `<br><img src="${msg.mediaUrl}" class="chat-img" onerror="this.src='https://placehold.co/250x150?text=Lỗi+Load+Ảnh'">`;
+                    }
+                }
+                html += `<span class="msg-time">${vnTime}</span>`;
+                html += `<button class="btn-del" onclick="deleteMsg('${msg._id}', '${USERS[u]}')">[Xóa]</button>`;
+                div.innerHTML = html;
+            }
+            return true;
+        }
+
+        function deleteMsg(id, userId) {
+            socket.emit("delete_message", {
+                messageId: id,
+                requesterId: userId
+            });
+        }
+
+        socket.on("message_deleted", (d) => {
+            ["A", "B"].forEach((u) => {
+                const el = document.getElementById(`m-${u}-${d.data.messageId}`);
+                if (el) {
+                    fetch("/api/chat/rooms/123/messages")
+                        .then((r) => r.json())
+                        .then((data) => {
+                            const target = data.data.messages.find(
+                                (m) => m._id === d.data.messageId,
+                            );
+                            if (target) renderContent(el, target, u);
+                        });
+                }
+            });
+        });
+
+        window.onload = async() => {
+            const r = await fetch("/api/chat/rooms/123/messages");
+            const res = await r.json();
+            if (res.success && res.data.messages) {
+                res.data.messages.forEach((m) => {
+                    ["A", "B"].forEach((u) => {
+                        const list = document.getElementById("list-" + u);
+                        const div = document.createElement("div");
+                        div.id = `m-${u}-${m._id}`;
+                        div.className = `msg ${m.senderId === USERS[u] ? "me" : ""}`;
+                        const isValid = renderContent(div, m, u);
+                        if (isValid) list.appendChild(div);
+                    });
+                });
+            }
+        };
+    </script>
+</body>
+
+</html>

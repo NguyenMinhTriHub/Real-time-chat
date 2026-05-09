@@ -1,24 +1,31 @@
 config:
   target: "http://localhost:3002"
   phases:
-    - duration: 30
-      arrivalRate: 5
-      rampTo: 20
-      name: "Warm-up"
-    - duration: 60
-      arrivalRate: 20
-      rampTo: 50
-      name: "Heavy Load"
+    - duration: 300 # Chạy trong 5 phút
+      arrivalRate: 2
+      rampTo: 10
+      name: "Giai đoạn tích lũy 500+ User"
   engines:
     socketio:
       transports: ["websocket"]
       query:
-        userId: "bot-{{ $uuid }}"
+        token: "final-report-{{ $uuid }}"
+
 scenarios:
-  - name: "Chat activity"
+  - name: "Duy trì kết nối ổn định"
     engine: socketio
     flow:
       - emit:
-          channel: "send_message"
-          data: { text: "Stress test message from {{ $uuid }}", type: "text" }
-      - think: 1
+          channel: "join_room"
+          data: { "roomId": "room_final" }
+
+      # Thay vì đứng im (think), robot sẽ gửi tin nhắn "Keep-alive"
+      # Điều này giúp socket không bị rơi vào trạng thái Timeout của Windows
+      - loop:
+          - emit:
+              channel: "send_message"
+              data:
+                senderId: "bot-{{ $uuid }}"
+                content: "ping"
+          - think: 5 # 5 giây gửi 1 lần là con số an toàn nhất
+        count: 100 # Ở lại đủ lâu để tích lũy số lượng User lớn

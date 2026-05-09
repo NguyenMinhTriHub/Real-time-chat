@@ -1,30 +1,38 @@
 config:
   target: "http://localhost:3002"
   phases:
-    - duration: 60 # Chạy kiểm tra trong 60 giây
-      arrivalRate: 5 # Mỗi giây có 5 người dùng mới vào
-      rampTo: 20 # Tăng dần lên 20 người dùng mỗi giây
-      name: "Giai đoạn tăng tải"
+    - duration: 60
+      arrivalRate: 5
+      rampTo: 15
+      name: "Giai đoạn tải ổn định"
   engines:
-    socketio: {} # Sử dụng engine socketio cho Chat
+    socketio:
+      transports: ["websocket"] # Ưu tiên kết nối WebSocket theo đặc tả [cite: 177]
 
 scenarios:
-  - name: "Người dùng ảo vào chat và gửi ảnh"
+  - name: "User tham gia phòng và gửi tin nhắn đa phương tiện"
     engine: socketio
     flow:
+      # Bước 1: Tham gia phòng (Sử dụng ID mẫu khớp với logic index.js) [cite: 359]
       - emit:
           channel: "join_room"
-          data: "lobby"
-      - think: 1 # Đợi 1 giây như người thật
+          data: { "roomId": "65f4a1b2c3d4e5f6a7b8c9d0" }
+      - think: 1
+
+      # Bước 2: Gửi tin nhắn văn bản (Trường dữ liệu là 'content' và 'senderId')
       - emit:
           channel: "send_message"
           data:
-            text: "Chào mọi người, mình là bot test!"
-            type: "text"
-      - think: 2 # Đợi 2 giây
+            senderId: "bot-user-{{ $uuid }}"
+            content: "Chào mọi người, tôi đang test hiệu năng hệ thống!"
+      - think: 2
+
+      # Bước 3: Gửi tin nhắn chứa ảnh (Đúng định dạng mediaUrl và fileName PascalCase)
       - emit:
           channel: "send_message"
           data:
-            url: "http://127.0.0.1:9000/chat-uploads/HoTaDung.jpg"
-            type: "img"
+            senderId: "bot-user-{{ $uuid }}"
+            content: ""
+            mediaUrl: "http://localhost:9000/chat-uploads/HoTaDung.jpg"
+            fileName: "HoTaDung.jpg"
       - think: 1

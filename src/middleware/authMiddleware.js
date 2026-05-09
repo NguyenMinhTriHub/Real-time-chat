@@ -1,4 +1,5 @@
-const axios = require("axios");
+const AuthService = require("../services/authService");
+const ErrorHandler = require("../utils/errorHandler");
 
 /**
  * Middleware xác thực cho các yêu cầu HTTP
@@ -8,26 +9,44 @@ module.exports = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
     if (!authHeader) {
-      return res.status(401).json({ success: false, error: "TOKEN_MISSING" });
+      return res
+        .status(401)
+        .json(
+          ErrorHandler.formatErrorResponse(
+            "TOKEN_MISSING",
+            "Authorization header is required",
+          ),
+        );
     }
 
-    const token = authHeader.split(" ")[1];
-
-    // Gọi sang Auth Service (Internal Endpoint) theo đặc tả
-    const response = await axios.post(
-      "http://auth-service:3001/api/auth/verify",
-      { token },
-    );
-
-    if (response.data.success) {
-      // Đính kèm thông tin user vào request để các Controller sử dụng
-      req.user = response.data.data;
-      next();
-    } else {
-      res.status(401).json({ success: false, error: "TOKEN_INVALID" });
+    const tokenParts = authHeader.split(" ");
+    const token = tokenParts[1];
+    if (!token) {
+      return res
+        .status(401)
+        .json(
+          ErrorHandler.formatErrorResponse(
+            "TOKEN_INVALID",
+            "Bearer token is missing",
+          ),
+        );
     }
+
+    const userData = await AuthService.verifyToken(token);
+    req.user = {
+      id: userData.userId || userData.id,
+      ...userData,
+    };
+    next();
   } catch (error) {
-    // Xử lý lỗi khi không thể kết nối tới Auth Service
-    res.status(401).json({ success: false, error: "AUTH_SERVICE_UNREACHABLE" });
+    const authError = ErrorHandler.handleAuthError(error);
+    res
+      .status(authError.statusCode)
+      .json(
+        ErrorHandler.formatErrorResponse(
+          authError.errorCode,
+          authError.message,
+        ),
+      );
   }
 };
